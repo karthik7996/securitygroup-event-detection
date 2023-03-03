@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Securitygroup to event rule
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  Tenancy:
+    Description: Account name
+    Type: String
+    Default: Ops
+  EnvType:
+    Description: Envrionment name
+    Type: String
+    Default: test
+  SlackUrl:
+    Description: enter slack webhook to receive alerts
+    Type: String
+    Default:  https://hooks.slack.com/services/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
+  TeamsUrl:
+    Description: enter teams webhook to receive alerts
+    Type: String
+    Default: https://cloudzenix.webhook.office.com/webhookb2/6b3ba5ea-708c-4629-9f20-7c1b09d46619@0ca8b1bf-7c75-4720-85bf-8569448da8a3/IncomingWebhook/f16a9d9f437c4b32b5d290dd3e529a72/e6dbaf6f-fc1e-47ac-b2cd-b59a44638d22
+   
+Resources:
+  Securitygroupalertlambda:
+    Type: AWS::Serverless::Function
+    Description: lambda for event trigger
+    Properties:
+      FunctionName: 
+        Fn::Sub: ${Tenancy}-securitygroup-event-detection
+      Timeout: 600
+      MemorySize: 1024
+      Runtime: python3.7
+      CodeUri: ./lambda
+      Handler: securitygroup-event-detection.lambda_handler
+      Environment:
+        Variables:
+          slack_url: !Ref SlackUrl
+          teams_url: !Ref TeamsUrl
+      Events:
+        OpssbxEvent:
+          Type: CloudWatchEvent
+          Properties:
+            Pattern:
+              {
+                "source": ["aws.ec2"],
+                "detail-type": ["AWS API Call via CloudTrail"],
+                "detail": {
+                "eventSource": ["ec2.amazonaws.com"],
+                "eventName": ["AuthorizeSecurityGroupIngress", "AuthorizeSecurityGroupEgress", "CreateSecurityGroup", "DeleteSecurityGroup", "RevokeSecurityGroupIngress", "RevokeSecurityGroupEgress"]
+                }
+              }              
+      Policies:
+      - AWSLambdaExecute # Managed Policy
+      - Version: '2012-10-17' # Policy Document
+        Statement:
+          - Sid: log
+            Action:
+            - logs:PutLogEvents
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            Effect: Allow
+            Resource:
+            - arn:aws:logs:*:*:log-group:*
